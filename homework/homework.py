@@ -121,23 +121,18 @@ def clean_datasets():
     """
     Paso 1: Limpieza de los datasets
     """
-    # Leer los datasets
     train_data = pd.read_csv('files/input/train_data.csv.zip')
     test_data = pd.read_csv('files/input/test_data.csv.zip')
     
-    # Renombrar la columna "default payment next month" a "default"
     train_data = train_data.rename(columns={'default payment next month': 'default'})
     test_data = test_data.rename(columns={'default payment next month': 'default'})
     
-    # Remover la columna "ID"
     train_data = train_data.drop(columns=['ID'])
     test_data = test_data.drop(columns=['ID'])
     
-    # Eliminar registros con información no disponible
     train_data = train_data.dropna()
     test_data = test_data.dropna()
     
-    # Para la columna EDUCATION, valores > 4 indican niveles superiores, agrupar en "others" (4)
     train_data.loc[train_data['EDUCATION'] > 4, 'EDUCATION'] = 4
     test_data.loc[test_data['EDUCATION'] > 4, 'EDUCATION'] = 4
     
@@ -160,15 +155,13 @@ def create_pipeline(x_train):
     """
     Paso 3: Crear un pipeline para el modelo de clasificación
     """
-    # Identificar variables categóricas y numéricas
+
     categorical_features = ['SEX', 'EDUCATION', 'MARRIAGE']
     numerical_features = [col for col in x_train.columns if col not in categorical_features]
     
-    # Crear transformadores
     categorical_transformer = OneHotEncoder(drop='first', sparse_output=False)
     numerical_transformer = MinMaxScaler()
     
-    # Crear preprocessor
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numerical_transformer, numerical_features),
@@ -176,7 +169,6 @@ def create_pipeline(x_train):
         ]
     )
     
-    # Crear pipeline completo
     pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('feature_selection', SelectKBest(score_func=f_classif)),
@@ -190,8 +182,6 @@ def optimize_hyperparameters(pipeline, x_train, y_train):
     """
     Paso 4: Optimizar hiperparámetros usando validación cruzada
     """
-    # Definir grid de hiperparámetros
-    # Sin class_weight para obtener naturalmente mayor precisión
     param_grid = {
         'feature_selection__k': [5, 10, 15, 20, 25, 30],
         'classifier__C': [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0],
@@ -199,7 +189,6 @@ def optimize_hyperparameters(pipeline, x_train, y_train):
         'classifier__solver': ['liblinear']
     }
     
-    # Realizar búsqueda de hiperparámetros
     grid_search = GridSearchCV(
         pipeline,
         param_grid,
@@ -229,27 +218,22 @@ def calculate_metrics(model, x_train, y_train, x_test, y_test):
     Paso 6: Calcular métricas de precisión, precisión balanceada, recall y f1-score
     Optimiza el threshold para maximizar balanced_accuracy
     """
-    # Obtener probabilidades
     y_train_proba = model.predict_proba(x_train)[:, 1]
     y_test_proba = model.predict_proba(x_test)[:, 1]
     
-    # Buscar el mejor threshold que maximice balanced_accuracy mientras mantiene alta precisión
     best_threshold = 0.5
     best_ba = 0
     for threshold in np.arange(0.4, 0.9, 0.01):
         y_pred_thresh = (y_train_proba >= threshold).astype(int)
         ba = balanced_accuracy_score(y_train, y_pred_thresh)
         prec = precision_score(y_train, y_pred_thresh, zero_division=0)
-        # Favorecemos thresholds con alta precisión y buena balanced_accuracy
         if ba > 0.63 and ba > best_ba:
             best_ba = ba
             best_threshold = threshold
     
-    # Predicciones con el threshold optimizado
     y_train_pred = (y_train_proba >= best_threshold).astype(int)
     y_test_pred = (y_test_proba >= best_threshold).astype(int)
     
-    # Métricas para entrenamiento
     train_metrics = {
         'type': 'metrics',
         'dataset': 'train',
@@ -259,7 +243,6 @@ def calculate_metrics(model, x_train, y_train, x_test, y_test):
         'f1_score': float(f1_score(y_train, y_train_pred))
     }
     
-    # Métricas para prueba
     test_metrics = {
         'type': 'metrics',
         'dataset': 'test',
@@ -277,31 +260,25 @@ def calculate_confusion_matrices(model, x_train, y_train, x_test, y_test):
     Paso 7: Calcular matrices de confusión
     Usa el mismo threshold optimizado que calculate_metrics
     """
-    # Obtener probabilidades
     y_train_proba = model.predict_proba(x_train)[:, 1]
     y_test_proba = model.predict_proba(x_test)[:, 1]
     
-    # Buscar el mejor threshold (mismo proceso que en calculate_metrics)
     best_threshold = 0.5
     best_ba = 0
     for threshold in np.arange(0.4, 0.9, 0.01):
         y_pred_thresh = (y_train_proba >= threshold).astype(int)
         ba = balanced_accuracy_score(y_train, y_pred_thresh)
         prec = precision_score(y_train, y_pred_thresh, zero_division=0)
-        # Favorecemos thresholds con alta precisión y buena balanced_accuracy
         if ba > 0.63 and ba > best_ba:
             best_ba = ba
             best_threshold = threshold
     
-    # Predicciones con el threshold optimizado
     y_train_pred = (y_train_proba >= best_threshold).astype(int)
     y_test_pred = (y_test_proba >= best_threshold).astype(int)
     
-    # Matrices de confusión
     cm_train = confusion_matrix(y_train, y_train_pred)
     cm_test = confusion_matrix(y_test, y_test_pred)
     
-    # Formatear para entrenamiento
     train_cm = {
         'type': 'cm_matrix',
         'dataset': 'train',
@@ -315,7 +292,6 @@ def calculate_confusion_matrices(model, x_train, y_train, x_test, y_test):
         }
     }
     
-    # Formatear para prueba
     test_cm = {
         'type': 'cm_matrix',
         'dataset': 'test',
